@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAPF Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:light}
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+/* Layout: workbench. Large grid canvas with transport controls beneath it on the left; scenario, planner, metrics, comparison and event log stacked in a right rail. One column on phones. */
+:root{
+  --bg:#EDF0F3; --surface:#FFFFFF; --ink:#17222C; --muted:#5A6976; --line:#D3DBE2;
+  --cell:#F9FAFB; --grid:#E3E8ED; --wall:#2C3A47;
+  --accent:#2F5BD0; --accent-ink:#FFFFFF; --bad:#D12F2F; --good:#1E8A4C; --heat:#E5702B;
+  --font-display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --font-ui:"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10161C; --surface:#18212A; --ink:#E6EDF3; --muted:#93A1AE; --line:#2A3743;
+    --cell:#131B22; --grid:#1F2A34; --wall:#4B5D6E;
+    --accent:#6C93FF; --accent-ink:#0B1220; --bad:#FF6B6B; --good:#4CC38A; --heat:#F28B4B;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161C; --surface:#18212A; --ink:#E6EDF3; --muted:#93A1AE; --line:#2A3743;
+  --cell:#131B22; --grid:#1F2A34; --wall:#4B5D6E;
+  --accent:#6C93FF; --accent-ink:#0B1220; --bad:#FF6B6B; --good:#4CC38A; --heat:#F28B4B;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--font-ui);padding-inline:16px;padding-block:20px 32px}
+.wrap{max-width:1280px;margin:0 auto}
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 32px;margin-bottom:16px}
+.eyebrow{margin:0;font:500 11px/1.4 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{margin:2px 0 0;font:700 40px/1 var(--font-display);letter-spacing:.01em;text-transform:uppercase;text-wrap:balance}
+.lede{margin:0;max-width:52ch;color:var(--muted)}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.stage,.rail{min-width:0;display:flex;flex-direction:column;gap:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.panel h2{margin:0 0 10px;font:600 11px/1.3 var(--font-mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.bar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{flex:1;appearance:none;border:0;background:transparent;color:var(--ink);font:500 13px/1 var(--font-ui);padding:9px 14px;cursor:pointer;min-width:0}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--muted);font:500 12px/1 var(--font-ui);padding:7px 10px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{color:var(--ink);border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible,canvas:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.canvas-box{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px}
+canvas{display:block;width:100%;touch-action:none;cursor:crosshair;border-radius:4px}
+.hint{margin:0;min-height:1.5em;color:var(--muted);font-size:13px}
+.transport{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.btn{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:500 13px/1 var(--font-ui);padding:10px 14px;border-radius:8px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);min-width:78px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.scrub{flex:1 1 180px;min-width:0;display:flex;align-items:center;gap:10px}
+.scrub input[type=range]{flex:1;min-width:0}
+input[type=range]{accent-color:var(--accent)}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.tick{font:500 12px/1 var(--font-mono);color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.speed{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+.speed input{width:90px}
+.field{display:grid;gap:4px;margin-bottom:12px}
+.field:last-child{margin-bottom:0}
+.field label,.field .lab{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.field .val{font-family:var(--font-mono);color:var(--ink)}
+select,input[type=number]{width:100%;font:500 13px var(--font-ui);padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)}
+.row{display:flex;gap:8px}
+.row>*{min-width:0}
+.note{margin:8px 0 0;font-size:12px;color:var(--muted)}
+dl.stats{display:grid;grid-template-columns:1fr auto;gap:6px 12px;margin:0}
+dl.stats dt{color:var(--muted)}
+dl.stats dd{margin:0;text-align:right;font:500 13px var(--font-mono);font-variant-numeric:tabular-nums}
+dd.good{color:var(--good)} dd.bad{color:var(--bad)}
+.tablewrap{overflow-x:auto;margin-top:10px}
+table{border-collapse:collapse;width:100%;font:12px var(--font-mono);font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500}
+.log{margin:0;max-height:190px;overflow:auto;font:12px/1.55 var(--font-mono);color:var(--muted);white-space:pre-wrap;word-break:break-word}
+.log b{color:var(--ink);font-weight:500}
+textarea.copybox{width:100%;margin-top:8px;font:12px var(--font-mono);background:var(--cell);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  h1{font-size:34px}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">TeamAFK · DSwithC × OOPs with C++ · Sem III PBL</p>
+      <h1>MAPF Simulator</h1>
+    </div>
+    <p class="lede">Plan collision-free routes for several agents on a grid. Edit the map while it runs and the planner replans from where every agent currently stands.</p>
+  </header>
+
+  <main class="app">
+    <section class="stage" aria-label="Simulation">
+      <div class="bar">
+        <div class="seg" id="tools" role="group" aria-label="Edit tool">
+          <button type="button" data-tool="wall" aria-pressed="true">Wall</button>
+          <button type="button" data-tool="agent" aria-pressed="false">Agent</button>
+          <button type="button" data-tool="erase" aria-pressed="false">Erase</button>
+        </div>
+        <div class="chips" role="group" aria-label="Overlays">
+          <button type="button" class="chip" id="ovPaths" aria-pressed="true">Paths</button>
+          <button type="button" class="chip" id="ovConf" aria-pressed="true">Conflicts</button>
+          <button type="button" class="chip" id="ovHeat" aria-pressed="false">Congestion</button>
+        </div>
+      </div>
+      <div class="canvas-box"><canvas id="cv" tabindex="0" aria-label="Grid world. Use the pointer to edit walls and agents."></canvas></div>
+      <p class="hint" id="hint" aria-live="polite"></p>
+      <div class="transport">
+        <button type="button" class="btn primary" id="play">Play</button>
+        <button type="button" class="btn" id="step">Step</button>
+        <button type="button" class="btn" id="reset">Reset</button>
+        <div class="scrub">
+          <input type="range" id="scrub" min="0" max="0" step="1" value="0" aria-label="Timeline">
+          <span class="tick" id="tickLabel">t 0 / 0</span>
+        </div>
+        <label class="speed" for="speed">Speed <input type="range" id="speed" min="1" max="12" step="1" value="4"><span class="mono" id="speedVal">4/s</span></label>
+      </div>
+    </section>
+
+    <aside class="rail" aria-label="Controls and results">
+      <section class="panel">
+        <h2>Scenario</h2>
+        <div class="field">
+          <label for="preset">Map</label>
+          <select id="preset">
+            <option value="corridor">Head-on corridor</option>
+            <option value="crossing">Open field crossing</option>
+            <option value="warehouse">Warehouse aisles</option>
+            <option value="random">Random obstacles</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="nAgents">Agents <span class="val" id="nAgentsVal">8</span></label>
+          <input type="range" id="nAgents" min="2" max="12" step="1" value="8">
+        </div>
+        <div class="field">
+          <label for="density">Wall density <span class="val" id="densityVal">12%</span></label>
+          <input type="range" id="density" min="0" max="35" step="1" value="12">
+        </div>
+        <div class="field">
+          <label for="seed">Seed</label>
+          <div class="row"><input type="number" id="seed" min="0" max="999999" value="7"><button type="button" class="btn" id="newSeed">New seed</button></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Planner</h2>
+        <div class="field">
+          <span class="lab">Search algorithm</span>
+          <div class="seg" id="algos" role="group" aria-label="Algorithm">
+            <button type="button" data-algo="bfs" aria-pressed="false">BFS</button>
+            <button type="button" data-algo="dijkstra" aria-pressed="false">Dijkstra</button>
+            <button type="button" data-algo="astar" aria-pressed="true">A*</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="lab">Coordination</span>
+          <div class="seg" id="modes" role="group" aria-label="Coordination mode">
+            <button type="button" data-mode="independent" aria-pressed="false">Independent</button>
+            <button type="button" data-mode="prioritized" aria-pressed="true">Prioritized</button>
+          </div>
+        </div>
+        <p class="note" id="modeNote"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Metrics</h2>
+        <dl class="stats">
+          <dt>Agents solved</dt><dd id="stSolved">–</dd>
+          <dt>Sum of costs</dt><dd id="stSoc">–</dd>
+          <dt>Makespan</dt><dd id="stMk">–</dd>
+          <dt id="stConfLab">Conflicts</dt><dd id="stConf">–</dd>
+          <dt>Nodes expanded</dt><dd id="stNodes">–</dd>
+          <dt>Planning time</dt><dd id="stTime">–</dd>
+          <dt>Replans</dt><dd id="stReplans">–</dd>
+          <dt>Tick</dt><dd id="stTick">–</dd>
+        </dl>
+      </section>
+
+      <section class="panel">
+        <h2>Compare algorithms</h2>
+        <div class="row">
+          <button type="button" class="btn" id="runCmp">Run comparison</button>
+          <button type="button" class="btn" id="copyCmp" disabled>Copy results</button>
+        </div>
+        <div class="tablewrap" id="cmpWrap"></div>
+        <div id="cmpCopy"></div>
+        <p class="note">Runs all three searches on the current map, agents and coordination mode. Time is the best of three runs.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Event log</h2>
+        <pre class="log" id="log" aria-live="polite"></pre>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script>
+// ==CORE_START==
+const DIRS=[[0,0],[1,0],[-1,0],[0,1],[0,-1]];
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+class Heap{
+  constructor(){this.f=[];this.h=[];this.k=[]}
+  get size(){return this.k.length}
+  sw(i,j){const F=this.f,H=this.h,K=this.k;let t=F[i];F[i]=F[j];F[j]=t;t=H[i];H[i]=H[j];H[j]=t;t=K[i];K[i]=K[j];K[j]=t}
+  push(f,h,k){
+    const F=this.f,H=this.h,K=this.k;let i=K.length;F.push(f);H.push(h);K.push(k);
+    while(i>0){const p=(i-1)>>1;if(F[p]<F[i]||(F[p]===F[i]&&H[p]<=H[i]))break;this.sw(i,p);i=p}
+  }
+  pop(){
+    const F=this.f,H=this.h,K=this.k;const top=K[0];
+    const lf=F.pop(),lh=H.pop(),lk=K.pop();const n=K.length;
+    if(n>0){
+      F[0]=lf;H[0]=lh;K[0]=lk;let i=0;
+      for(;;){
+        const l=2*i+1,r=l+1;let m=i;
+        if(l<n&&(F[l]<F[m]||(F[l]===F[m]&&H[l]<H[m])))m=l;
+        if(r<n&&(F[r]<F[m]||(F[r]===F[m]&&H[r]<H[m])))m=r;
+        if(m===i)break;this.sw(i,m);i=m;
+      }
+    }
+    return top;
+  }
+}
+class Queue{constructor(){this.a=[];this.i=0}push(k){this.a.push(k)}pop(){return this.a[this.i++]}get size(){return this.a.length-this.i}}
+
+function makeCtx(W,H,walls){
+  const N=W*H,cache=new Map();
+  const ctx={W,H,N,walls,maxT:160,maxNodes:250000,
+    dist(g){
+      if(cache.has(g))return cache.get(g);
+      const d=new Int32Array(N).fill(-1);
+      if(!walls[g]){
+        const q=[g];d[g]=0;
+        for(let i=0;i<q.length;i++){
+          const c=q[i],x=c%W,y=(c/W)|0;
+          for(let k=1;k<5;k++){
+            const nx=x+DIRS[k][0],ny=y+DIRS[k][1];
+            if(nx<0||ny<0||nx>=W||ny>=H)continue;
+            const c2=ny*W+nx;if(walls[c2]||d[c2]>=0)continue;
+            d[c2]=d[c]+1;q.push(c2);
+          }
+        }
+      }
+      cache.set(g,d);return d;
+    }};
+  return ctx;
+}
+
+/* Single-agent search on the plain grid (used by Independent mode). */
+function searchGrid(ctx,s,g,algo){
+  const {W,H,N,walls}=ctx;
+  const par=new Int32Array(N).fill(-2),gc=new Int32Array(N),closed=new Uint8Array(N);
+  const gx=g%W,gy=(g/W)|0;
+  const hf=c=>Math.abs(c%W-gx)+Math.abs(((c/W)|0)-gy);
+  const bfs=algo==='bfs';
+  const open=bfs?new Queue():new Heap();
+  par[s]=-1;gc[s]=0;
+  if(bfs)open.push(s);else{const h=algo==='astar'?hf(s):0;open.push(h,h,s)}
+  let nodes=0;
+  while(open.size>0){
+    const c=open.pop();
+    if(closed[c])continue;closed[c]=1;nodes++;
+    if(c===g){const p=[];for(let q=c;q!==-1;q=par[q])p.push(q);p.reverse();return{path:p,nodes}}
+    const x=c%W,y=(c/W)|0;
+    for(let k=1;k<5;k++){
+      const nx=x+DIRS[k][0],ny=y+DIRS[k][1];
+      if(nx<0||ny<0||nx>=W||ny>=H)continue;
+      const c2=ny*W+nx;if(walls[c2]||closed[c2])continue;
+      const ng=gc[c]+1;
+      if(par[c2]===-2||(!bfs&&ng<gc[c2])){
+        par[c2]=c;gc[c2]=ng;
+        if(bfs)open.push(c2);else{const h=algo==='astar'?hf(c2):0;open.push(ng+h,h,c2)}
+      }
+    }
+  }
+  return{path:null,nodes};
+}
+
+/* Reservation table for prioritized planning. */
+function newRes(N){return{vert:new Set(),edge:new Set(),lastT:new Int32Array(N).fill(-1),parkedAt:new Int32Array(N).fill(-1)}}
+function addRes(res,N,p){
+  for(let t=0;t<p.length;t++){
+    res.vert.add(t*N+p[t]);
+    if(t>res.lastT[p[t]])res.lastT[p[t]]=t;
+    if(t+1<p.length&&p[t]!==p[t+1])res.edge.add((t*N+p[t])*N+p[t+1]);
+  }
+  res.parkedAt[p[p.length-1]]=p.length-1;
+}
+function parkRes(res,c){res.parkedAt[c]=0}
+
+/* Space-time search: states are (cell, time); moves are 4 directions plus wait. */
+function searchST(ctx,s,g,algo,res){
+  const {W,H,N,walls,maxT}=ctx;
+  const dg=ctx.dist(g);
+  if(dg[s]<0)return{path:null,nodes:0};
+  const hm=algo==='astar'?dg:null;
+  const parent=new Int32Array((maxT+1)*N).fill(-2);
+  parent[s]=-1;
+  const bfs=algo==='bfs';
+  const open=bfs?new Queue():new Heap();
+  if(bfs)open.push(s);else{const h=hm?hm[s]:0;open.push(h,h,s)}
+  let nodes=0;
+  while(open.size>0){
+    const key=open.pop();
+    const t=(key/N)|0,c=key-t*N;
+    nodes++;
+    if(nodes>ctx.maxNodes)break;
+    if(c===g&&t>res.lastT[g]&&res.parkedAt[g]===-1){
+      const p=[];for(let q=key;q!==-1;q=parent[q])p.push(q%N);p.reverse();return{path:p,nodes};
+    }
+    if(t>=maxT)continue;
+    const x=c%W,y=(c/W)|0,nt=t+1;
+    for(let k=0;k<5;k++){
+      const nx=x+DIRS[k][0],ny=y+DIRS[k][1];
+      if(nx<0||ny<0||nx>=W||ny>=H)continue;
+      const c2=ny*W+nx;
+      if(walls[c2])continue;
+      if(res.vert.has(nt*N+c2))continue;
+      const pk=res.parkedAt[c2];if(pk!==-1&&nt>=pk)continue;
+      if(c2!==c&&res.edge.has((t*N+c2)*N+c))continue;
+      const k2=nt*N+c2;
+      if(parent[k2]!==-2)continue;
+      parent[k2]=key;
+      if(bfs)open.push(k2);else{const h=hm?hm[c2]:0;open.push(nt+h,h,k2)}
+    }
+  }
+  return{path:null,nodes};
+}
+
+/* ags: [{s,g}] cell indices. order: initial priority order. Every agent gets a path; unsolved agents hold at their start. */
+function planAgents(ctx,ags,algo,mode,order0){
+  const t0=performance.now(),n=ags.length,N=ctx.N;
+  let nodes=0,reordered=false;
+  const paths=new Array(n).fill(null);
+  const order=order0&&order0.length===n?order0.slice():[...Array(n).keys()];
+  let finalOrder=order,unsolved=new Set();
+  if(mode==='independent'){
+    for(let i=0;i<n;i++){
+      const r=searchGrid(ctx,ags[i].s,ags[i].g,algo);nodes+=r.nodes;
+      if(r.path)paths[i]=r.path;else{paths[i]=[ags[i].s];unsolved.add(i)}
+    }
+  }else{
+    const dead=new Set();
+    for(let i=0;i<n;i++)if(ctx.dist(ags[i].g)[ags[i].s]<0)dead.add(i);
+    let active=order.filter(i=>!dead.has(i));
+    let attempts=0,done=null,lastBad=-1;
+    while(attempts<=n){
+      const res=newRes(N);for(const i of dead)parkRes(res,ags[i].s);
+      const tmp=new Array(n).fill(null);let bad=-1;
+      for(const i of active){
+        const r=searchST(ctx,ags[i].s,ags[i].g,algo,res);nodes+=r.nodes;
+        if(!r.path){bad=i;break}
+        tmp[i]=r.path;addRes(res,N,r.path);
+      }
+      if(bad<0){done=tmp;break}
+      lastBad=bad;attempts++;
+      if(active[0]===bad)break;
+      active=[bad,...active.filter(i=>i!==bad)];reordered=true;
+    }
+    unsolved=new Set(dead);
+    if(done){for(let i=0;i<n;i++)paths[i]=done[i]||[ags[i].s]}
+    else{
+      if(lastBad>=0)unsolved.add(lastBad);
+      for(;;){
+        const res=newRes(N);for(const i of unsolved)parkRes(res,ags[i].s);
+        const tmp=new Array(n).fill(null);let bad=-1;
+        for(const i of active){
+          if(unsolved.has(i))continue;
+          const r=searchST(ctx,ags[i].s,ags[i].g,algo,res);nodes+=r.nodes;
+          if(!r.path){bad=i;break}
+          tmp[i]=r.path;addRes(res,N,r.path);
+        }
+        if(bad<0){for(let i=0;i<n;i++)paths[i]=tmp[i]||[ags[i].s];break}
+        unsolved.add(bad);
+      }
+    }
+    finalOrder=active;
+  }
+  return{paths,failed:[...unsolved].sort((a,b)=>a-b),nodes,ms:performance.now()-t0,reordered,order:finalOrder};
+}
+
+/* Vertex conflicts (same cell, same tick) and swap conflicts (two agents trade cells). Agents rest at their last cell after arriving. */
+function detectConflicts(paths){
+  const out=[];let T=0;
+  for(const p of paths)if(p)T=Math.max(T,p.length);
+  const at=(p,t)=>p[Math.min(t,p.length-1)];
+  for(let t=0;t<T;t++){
+    const seen=new Map();
+    for(let i=0;i<paths.length;i++){
+      const p=paths[i];if(!p)continue;
+      const c=at(p,t);
+      if(seen.has(c)){for(const j of seen.get(c))out.push({type:'vertex',t,a:j,b:i,c1:c,c2:c});seen.get(c).push(i)}
+      else seen.set(c,[i]);
+    }
+    if(t+1<T){
+      for(let i=0;i<paths.length;i++){
+        if(!paths[i])continue;
+        const a0=at(paths[i],t),a1=at(paths[i],t+1);
+        if(a0===a1)continue;
+        for(let j=i+1;j<paths.length;j++){
+          if(!paths[j])continue;
+          if(at(paths[j],t)===a1&&at(paths[j],t+1)===a0)out.push({type:'swap',t,a:i,b:j,c1:a0,c2:a1});
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/* Scenario builders. Each returns {walls, agents:[{s,g}]}. */
+function pickAgents(rng,walls,W,H,n,minD){
+  const N=W*H,comp=new Int32Array(N).fill(-1);let best=[],id=0;
+  for(let c=0;c<N;c++){
+    if(walls[c]||comp[c]>=0)continue;
+    const q=[c];comp[c]=id;
+    for(let i=0;i<q.length;i++){
+      const u=q[i],x=u%W,y=(u/W)|0;
+      for(let k=1;k<5;k++){
+        const nx=x+DIRS[k][0],ny=y+DIRS[k][1];
+        if(nx<0||ny<0||nx>=W||ny>=H)continue;
+        const v=ny*W+nx;if(walls[v]||comp[v]>=0)continue;comp[v]=id;q.push(v);
+      }
+    }
+    if(q.length>best.length)best=q;id++;
+  }
+  const pool=best.slice();
+  for(let i=pool.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));const t=pool[i];pool[i]=pool[j];pool[j]=t}
+  const m=Math.min(n,Math.floor(pool.length/2)),agents=[];
+  const md=(a,b)=>Math.abs(a%W-b%W)+Math.abs(((a/W)|0)-((b/W)|0));
+  for(let k=0;k<m;k++){
+    const s=pool.shift();
+    let gi=pool.findIndex(c=>md(s,c)>=minD);
+    if(gi<0)gi=0;
+    const g=pool.splice(gi,1)[0];
+    agents.push({s,g});
+  }
+  return agents;
+}
+function genRandom(W,H,n,density,seed){
+  const rng=mulberry32(seed),walls=new Uint8Array(W*H);
+  for(let c=0;c<W*H;c++)walls[c]=rng()<density/100?1:0;
+  return{walls,agents:pickAgents(rng,walls,W,H,n,8)};
+}
+function presetWarehouse(W,H,n,seed){
+  const walls=new Uint8Array(W*H),rng=mulberry32(seed);
+  for(const [y0,y1] of [[3,4],[7,8],[11,12]])for(const [x0,x1] of [[2,7],[10,15],[18,22]])
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)walls[y*W+x]=1;
+  return{walls,agents:pickAgents(rng,walls,W,H,n,10)};
+}
+function presetCorridor(W,H){
+  const walls=new Uint8Array(W*H).fill(1),id=(x,y)=>y*W+x,my=8;
+  for(let x=0;x<W;x++)walls[id(x,my)]=0;
+  walls[id(11,my-1)]=0;
+  return{walls,agents:[{s:id(0,my),g:id(W-1,my)},{s:id(W-1,my),g:id(0,my)}]};
+}
+function presetCrossing(W,H){
+  const walls=new Uint8Array(W*H),id=(x,y)=>y*W+x;
+  return{walls,agents:[
+    {s:id(1,8),g:id(22,8)},{s:id(22,7),g:id(1,7)},
+    {s:id(11,1),g:id(11,14)},{s:id(12,14),g:id(12,1)},
+    {s:id(2,2),g:id(21,13)},{s:id(21,2),g:id(2,13)}]};
+}
+// ==CORE_END==
+
+// ---------- UI ----------
+const $=s=>document.querySelector(s);
+const ALG={bfs:'BFS',dijkstra:'Dijkstra',astar:'A*'};
+const AG_LIGHT=['#D9481F','#0B8F9E','#C98A00','#7C3FC4','#C72A66','#27863E','#7A5B38','#1A8FD6','#9A3B52','#5E7A00','#E06A2C','#3F4FA8'];
+const AG_DARK=['#FF7A52','#35C6D6','#F2B632','#B685F2','#FF6B9E','#4CC670','#C49A6C','#52B7F5','#E5738A','#A6C428','#FF9A5C','#8A9BFF'];
+const S={W:24,H:16,walls:new Uint8Array(24*16),agents:[],algo:'astar',mode:'prioritized',preset:'corridor',nAgents:8,density:12,seed:7,
+  tool:'wall',pending:null,plan:null,tNow:0,playing:false,speed:4,elapsed:0,replans:0,log:[],show:{paths:true,conf:true,heat:false},paint:null,lastCmp:''};
+const cv=$('#cv'),g2=cv.getContext('2d');
+let cs=20,last=0;
+
+function isDark(){const r=document.documentElement,t=r.getAttribute('data-theme');return t==='dark'||(t!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)}
+function themeColors(){const s=getComputedStyle(document.documentElement),v=n=>s.getPropertyValue(n).trim();
+  return{cell:v('--cell'),grid:v('--grid'),wall:v('--wall'),ink:v('--ink'),muted:v('--muted'),bad:v('--bad'),heat:v('--heat'),accent:v('--accent'),surface:v('--surface')}}
+function lum(hex){const n=parseInt(hex.slice(1),16),r=n>>16&255,g=n>>8&255,b=n&255;return(0.299*r+0.587*g+0.114*b)/255}
+const cx=c=>c%S.W,cy=c=>(c/S.W)|0;
+
+function addLog(s){S.log.push(s);if(S.log.length>200)S.log.shift();renderLog()}
+function renderLog(){const el=$('#log');el.textContent=S.log.join('\n');el.scrollTop=el.scrollHeight}
+let toastT=0;
+function say(msg){const h=$('#hint');h.textContent=msg;clearTimeout(toastT);toastT=setTimeout(updateHint,3200)}
+function updateHint(){
+  const h=$('#hint');
+  if(S.tool==='wall')h.textContent='Click or drag to place walls; start on a wall to remove. Once the run has started, each edit replans from the agents\u2019 current cells.';
+  else if(S.tool==='agent')h.textContent=S.pending==null?(S.agents.length>=12?'Twelve agents is the maximum.':'Click a free cell to set the start of agent '+(S.agents.length+1)+'.'):'Now click the goal cell for agent '+(S.agents.length+1)+'.';
+  else h.textContent='Click a wall to remove it, or click an agent\u2019s start or goal to delete that agent.';
+}
+
+function loadScenario(){
+  const {W,H}=S;let sc;
+  if(S.preset==='corridor')sc=presetCorridor(W,H);
+  else if(S.preset==='crossing')sc=presetCrossing(W,H);
+  else if(S.preset==='warehouse')sc=presetWarehouse(W,H,S.nAgents,S.seed);
+  else sc=genRandom(W,H,S.nAgents,S.density,S.seed);
+  S.walls=sc.walls;S.agents=sc.agents.map((a,i)=>({id:i+1,start:a.s,goal:a.g,cur:a.s}));
+  S.pending=null;
+  $('#nAgents').disabled=!(S.preset==='random'||S.preset==='warehouse');
+  $('#density').disabled=S.preset!=='random';
+  $('#seed').disabled=!(S.preset==='random'||S.preset==='warehouse');
+  $('#newSeed').disabled=$('#seed').disabled;
+  reset();
+}
+function reset(){
+  S.agents.forEach((a,i)=>{a.id=i+1;a.cur=a.start});
+  S.elapsed=0;S.replans=0;S.tNow=0;S.playing=false;S.log=[];
+  replan('Initial plan');refreshUI();
+}
+function replan(reason){
+  const ctx=makeCtx(S.W,S.H,S.walls);
+  const ags=S.agents.map(a=>({s:a.cur,g:a.goal}));
+  const order=S.agents.map((_,i)=>i).sort((i,j)=>((S.agents[j].cur===S.agents[j].goal)-(S.agents[i].cur===S.agents[i].goal))||(i-j));
+  const p=planAgents(ctx,ags,S.algo,S.mode,order);
+  p.conflicts=detectConflicts(p.paths);
+  p.cost=p.paths.map((x,i)=>p.failed.includes(i)?null:x.length-1);
+  p.soc=p.cost.reduce((a,b)=>a+(b||0),0);
+  p.makespan=p.cost.reduce((a,b)=>Math.max(a,b||0),0);
+  p.heat=new Int32Array(S.W*S.H);p.heatMax=0;
+  p.paths.forEach(x=>{new Set(x).forEach(c=>{p.heat[c]++;if(p.heat[c]>p.heatMax)p.heatMax=p.heat[c]})});
+  S.plan=p;
+  const nm=i=>'A'+S.agents[i].id;
+  addLog(reason);
+  addLog(ALG[S.algo]+' \u00B7 '+S.mode+' \u00B7 SOC '+p.soc+' \u00B7 makespan '+p.makespan+' \u00B7 '+p.conflicts.length+' conflict'+(p.conflicts.length===1?'':'s'));
+  if(S.mode==='prioritized'&&p.reordered)addLog('Priority order changed to '+p.order.map(nm).join(' > ')+' to find a plan.');
+  if(p.failed.length)addLog('No path for '+p.failed.map(nm).join(', ')+'; held in place.');
+  p.conflicts.slice(0,5).forEach(c=>addLog('  t='+c.t+' '+c.type+' '+nm(c.a)+' x '+nm(c.b)+' at ('+cx(c.c1)+','+cy(c.c1)+')'));
+  if(p.conflicts.length>5)addLog('  +'+(p.conflicts.length-5)+' more');
+}
+
+function startedNow(){return S.tNow>0||S.elapsed>0}
+function posAt(i,t){const p=S.plan.paths[i];return p[Math.min(t,p.length-1)]}
+function editWall(c,val){
+  if((S.walls[c]===1)===val)return false;
+  if(val){
+    if(S.agents.some(a=>a.goal===c||a.start===c||a.cur===c)){say('That cell is an agent start or goal.');return false}
+  }
+  const started=startedNow(),ti=Math.floor(S.tNow);
+  if(started){
+    const pos=S.agents.map((_,i)=>posAt(i,ti));
+    if(val&&pos.includes(c)){say('An agent is standing on that cell right now.');return false}
+    S.agents.forEach((a,i)=>{a.cur=pos[i]});
+    S.elapsed+=ti;S.replans++;S.tNow=0;
+    S.walls[c]=val?1:0;
+    replan('Replan #'+S.replans+' at tick '+S.elapsed+': wall '+(val?'added':'removed')+' at ('+cx(c)+','+cy(c)+')');
+  }else{
+    S.walls[c]=val?1:0;
+    replan('Map edited');
+  }
+  refreshUI();return true;
+}
+function occupied(c){return S.agents.some(a=>a.start===c||a.goal===c)}
+function handleCell(c,first){
+  if(S.tool==='wall'){
+    if(first)S.paint=!(S.walls[c]===1);
+    editWall(c,S.paint);
+  }else if(S.tool==='erase'){
+    const idx=S.agents.findIndex(a=>a.start===c||a.goal===c);
+    if(idx>=0){S.agents.splice(idx,1);S.pending=null;reset();say('Agent removed.')}
+    else if(S.walls[c])editWall(c,false);
+  }else if(first){
+    if(S.walls[c]){say('Pick a free cell.');return}
+    if(occupied(c)){say('That cell is already used by another agent.');return}
+    if(S.pending==null){
+      if(S.agents.length>=12){say('Twelve agents is the maximum.');return}
+      S.pending=c;updateHint();
+    }else{
+      if(c===S.pending)return;
+      const s=S.pending;S.pending=null;
+      S.agents.push({id:S.agents.length+1,start:s,goal:c,cur:s});
+      reset();updateHint();
+    }
+  }
+}
+function cellFromEvent(e){
+  const r=cv.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/(r.width/S.W)),y=Math.floor((e.clientY-r.top)/(r.height/S.H));
+  if(x<0||y<0||x>=S.W||y>=S.H)return -1;return y*S.W+x;
+}
+let lastPaintCell=-1;
+cv.addEventListener('pointerdown',e=>{
+  const c=cellFromEvent(e);if(c<0)return;
+  cv.setPointerCapture(e.pointerId);lastPaintCell=c;S.drag=true;handleCell(c,true);
+});
+cv.addEventListener('pointermove',e=>{
+  if(!S.drag||S.tool!=='wall')return;
+  const c=cellFromEvent(e);if(c<0||c===lastPaintCell)return;lastPaintCell=c;handleCell(c,false);
+});
+const endDrag=()=>{S.drag=false;lastPaintCell=-1};
+cv.addEventListener('pointerup',endDrag);cv.addEventListener('pointercancel',endDrag);
+
+// ---------- drawing ----------
+function resize(){
+  const w=cv.parentElement.clientWidth-16;
+  cs=Math.max(8,w/S.W);const h=cs*S.H,dpr=window.devicePixelRatio||1;
+  cv.style.height=h+'px';cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);
+  g2.setTransform(dpr,0,0,dpr,0,0);
+}
+function agentPos(i,t){
+  const p=S.plan.paths[i],a=Math.min(Math.floor(t),p.length-1),b=Math.min(a+1,p.length-1),f=t-Math.floor(t);
+  const ax=cx(p[a]),ay=cy(p[a]),bx=cx(p[b]),by=cy(p[b]);
+  return[(ax+(bx-ax)*f+.5)*cs,(ay+(by-ay)*f+.5)*cs];
+}
+function draw(){
+  if(!S.plan)return;
+  const T=themeColors(),pal=isDark()?AG_DARK:AG_LIGHT,W=S.W,H=S.H;
+  g2.clearRect(0,0,W*cs,H*cs);
+  g2.fillStyle=T.cell;g2.fillRect(0,0,W*cs,H*cs);
+  // congestion
+  if(S.show.heat&&S.plan.heatMax>0){
+    g2.fillStyle=T.heat;
+    for(let c=0;c<W*S.H;c++){const v=S.plan.heat[c];if(v>0&&!S.walls[c]){g2.globalAlpha=.10+.60*v/S.plan.heatMax;g2.fillRect(cx(c)*cs,cy(c)*cs,cs,cs)}}
+    g2.globalAlpha=1;
+  }
+  // grid
+  g2.strokeStyle=T.grid;g2.lineWidth=1;g2.beginPath();
+  for(let x=0;x<=W;x++){g2.moveTo(Math.round(x*cs)+.5,0);g2.lineTo(Math.round(x*cs)+.5,H*cs)}
+  for(let y=0;y<=H;y++){g2.moveTo(0,Math.round(y*cs)+.5);g2.lineTo(W*cs,Math.round(y*cs)+.5)}
+  g2.stroke();
+  // walls
+  g2.fillStyle=T.wall;
+  for(let c=0;c<W*H;c++)if(S.walls[c])g2.fillRect(cx(c)*cs+.5,cy(c)*cs+.5,cs-1,cs-1);
+  // paths
+  if(S.show.paths){
+    g2.lineJoin='round';g2.lineCap='round';
+    S.plan.paths.forEach((p,i)=>{
+      if(p.length<2)return;
+      const off=((i%3)-1)*cs*.07;
+      g2.strokeStyle=pal[i%12];g2.globalAlpha=.5;g2.lineWidth=Math.max(2,cs*.1);g2.beginPath();
+      p.forEach((c,k)=>{const px=(cx(c)+.5)*cs+off,py=(cy(c)+.5)*cs+off;k?g2.lineTo(px,py):g2.moveTo(px,py)});
+      g2.stroke();
+    });
+    g2.globalAlpha=1;
+  }
+  // starts and goals
+  S.agents.forEach((a,i)=>{
+    const col=pal[i%12];
+    g2.strokeStyle=col;g2.lineWidth=Math.max(1.5,cs*.07);
+    g2.beginPath();g2.arc((cx(a.cur)+.5)*cs,(cy(a.cur)+.5)*cs,cs*.42,0,Math.PI*2);g2.setLineDash([cs*.1,cs*.1]);g2.stroke();g2.setLineDash([]);
+    const gx=cx(a.goal)*cs+cs*.14,gy=cy(a.goal)*cs+cs*.14,gs=cs*.72;
+    const arrived=S.plan.paths[i]&&posAt(i,Math.floor(S.tNow))===a.goal&&!S.plan.failed.includes(i);
+    g2.fillStyle=col;g2.globalAlpha=arrived?.35:.14;g2.fillRect(gx,gy,gs,gs);g2.globalAlpha=1;
+    g2.strokeStyle=col;g2.lineWidth=Math.max(1.5,cs*.08);g2.strokeRect(gx,gy,gs,gs);
+    g2.fillStyle=col;g2.font='600 '+Math.max(8,cs*.3)+'px '+getComputedStyle(document.body).getPropertyValue('--font-mono');
+    g2.textAlign='center';g2.textBaseline='middle';g2.fillText(String(a.id),gx+gs/2,gy+gs/2+.5);
+  });
+  // conflicts
+  if(S.show.conf){
+    S.plan.conflicts.forEach(c=>{
+      const near=Math.abs(c.t-S.tNow)<=.75;
+      const px=(cx(c.c1)+.5)*cs+(c.type==='swap'?(cx(c.c2)-cx(c.c1))*cs*.5:0),py=(cy(c.c1)+.5)*cs+(c.type==='swap'?(cy(c.c2)-cy(c.c1))*cs*.5:0);
+      g2.strokeStyle=T.bad;g2.lineWidth=near?3:1.5;g2.globalAlpha=near?1:.55;const r=cs*(near?.3:.2);
+      g2.beginPath();g2.moveTo(px-r,py-r);g2.lineTo(px+r,py+r);g2.moveTo(px+r,py-r);g2.lineTo(px-r,py+r);g2.stroke();
+      if(near){g2.beginPath();g2.arc(px,py,cs*.46,0,Math.PI*2);g2.stroke()}
+      g2.globalAlpha=1;
+    });
+  }
+  // agents
+  S.agents.forEach((a,i)=>{
+    const [px,py]=agentPos(i,S.tNow),col=pal[i%12],bad=S.plan.failed.includes(i);
+    g2.fillStyle=col;g2.beginPath();g2.arc(px,py,cs*.33,0,Math.PI*2);g2.fill();
+    g2.strokeStyle=bad?T.bad:T.surface;g2.lineWidth=bad?2.5:1.5;g2.stroke();
+    g2.fillStyle=lum(col)>.55?'#10161C':'#FFFFFF';
+    g2.font='600 '+Math.max(8,cs*.34)+'px '+getComputedStyle(document.body).getPropertyValue('--font-mono');
+    g2.textAlign='center';g2.textBaseline='middle';g2.fillText(String(a.id),px,py+.5);
+  });
+  // pending start
+  if(S.pending!=null){
+    g2.strokeStyle=T.accent;g2.lineWidth=2;g2.setLineDash([4,3]);
+    g2.strokeRect(cx(S.pending)*cs+3,cy(S.pending)*cs+3,cs-6,cs-6);g2.setLineDash([]);
+  }
+}
+
+// ---------- UI sync ----------
+function refreshUI(){
+  const p=S.plan,n=S.agents.length;
+  $('#stSolved').textContent=(n-p.failed.length)+' / '+n;
+  $('#stSoc').textContent=p.soc;$('#stMk').textContent=p.makespan;
+  $('#stConfLab').textContent=S.mode==='independent'?'Conflicts detected':'Conflicts remaining';
+  const ce=$('#stConf');ce.textContent=p.conflicts.length;ce.className=p.conflicts.length?'bad':'good';
+  $('#stNodes').textContent=p.nodes.toLocaleString();
+  $('#stTime').textContent=p.ms.toFixed(1)+' ms';
+  $('#stReplans').textContent=S.replans;
+  const sc=$('#scrub');sc.max=p.makespan;sc.value=Math.floor(S.tNow);
+  $('#play').textContent=S.playing?'Pause':'Play';
+  updateTick();
+  $('#nAgentsVal').textContent=S.nAgents;$('#densityVal').textContent=S.density+'%';
+  $('#modeNote').textContent=S.mode==='independent'
+    ?'Each agent runs its own '+ALG[S.algo]+' search and ignores the others. Collisions are detected afterwards and marked on the grid.'
+    :'Agents plan one after another in priority order against a reservation table of cells and swaps, with a wait move. '+(S.algo==='astar'?'A* uses true grid distance as its heuristic.':ALG[S.algo]+' searches without a heuristic.');
+  updateHint();
+}
+function updateTick(){
+  const mk=S.plan?S.plan.makespan:0;
+  $('#tickLabel').textContent='t '+Math.floor(S.tNow)+' / '+mk;
+  $('#stTick').textContent=(S.elapsed+Math.floor(S.tNow));
+}
+function loop(ts){
+  const dt=Math.min(.1,(ts-last)/1000);last=ts;
+  if(S.playing&&S.plan){
+    S.tNow+=dt*S.speed;
+    if(S.tNow>=S.plan.makespan){S.tNow=S.plan.makespan;S.playing=false;$('#play').textContent='Play'}
+    $('#scrub').value=Math.floor(S.tNow);updateTick();
+  }
+  draw();requestAnimationFrame(loop);
+}
+
+// ---------- events ----------
+$('#tools').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-tool]');if(!b)return;
+  S.tool=b.dataset.tool;S.pending=null;
+  document.querySelectorAll('#tools button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  updateHint();
+});
+function seg(id,key,attr){
+  $(id).addEventListener('click',e=>{
+    const b=e.target.closest('button['+'data-'+attr+']');if(!b)return;
+    S[key]=b.dataset[attr];
+    document.querySelectorAll(id+' button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+    reset();
+  });
+}
+seg('#algos','algo','algo');seg('#modes','mode','mode');
+[['#ovPaths','paths'],['#ovConf','conf'],['#ovHeat','heat']].forEach(([id,k])=>$(id).addEventListener('click',e=>{
+  S.show[k]=!S.show[k];e.currentTarget.setAttribute('aria-pressed',S.show[k]);
+}));
+$('#play').addEventListener('click',()=>{
+  if(!S.plan.makespan){say('Nothing to simulate: every agent is already at its goal or has no path.');return}
+  if(S.tNow>=S.plan.makespan)S.tNow=0;
+  S.playing=!S.playing;refreshUI();
+});
+$('#step').addEventListener('click',()=>{S.playing=false;S.tNow=Math.min(S.plan.makespan,Math.floor(S.tNow)+1);refreshUI()});
+$('#reset').addEventListener('click',()=>reset());
+$('#scrub').addEventListener('input',e=>{S.playing=false;S.tNow=+e.target.value;$('#play').textContent='Play';updateTick()});
+$('#speed').addEventListener('input',e=>{S.speed=+e.target.value;$('#speedVal').textContent=S.speed+'/s'});
+$('#preset').addEventListener('change',e=>{S.preset=e.target.value;loadScenario()});
+$('#nAgents').addEventListener('input',e=>{S.nAgents=+e.target.value;$('#nAgentsVal').textContent=S.nAgents;loadScenario()});
+$('#density').addEventListener('input',e=>{S.density=+e.target.value;$('#densityVal').textContent=S.density+'%';loadScenario()});
+$('#seed').addEventListener('change',e=>{S.seed=Math.max(0,Math.min(999999,Math.floor(+e.target.value||0)));e.target.value=S.seed;loadScenario()});
+$('#newSeed').addEventListener('click',()=>{S.seed=Math.floor(Math.random()*100000);$('#seed').value=S.seed;loadScenario()});
+
+function runCompare(){
+  const ctx=makeCtx(S.W,S.H,S.walls);
+  const ags=S.agents.map(a=>({s:a.start,g:a.goal}));
+  const rows=['bfs','dijkstra','astar'].map(al=>{
+    let best=null,p=null;
+    for(let k=0;k<3;k++){p=planAgents(ctx,ags,al,S.mode);if(best===null||p.ms<best)best=p.ms}
+    const cost=p.paths.map((x,i)=>p.failed.includes(i)?0:x.length-1);
+    return{al:ALG[al],nodes:p.nodes,ms:best,soc:cost.reduce((a,b)=>a+b,0),mk:Math.max(0,...cost),conf:detectConflicts(p.paths).length};
+  });
+  let h='<table><thead><tr><th>Algorithm</th><th>Nodes</th><th>ms</th><th>SOC</th><th>Makespan</th><th>Conflicts</th></tr></thead><tbody>';
+  rows.forEach(r=>{h+='<tr><td>'+r.al+'</td><td>'+r.nodes.toLocaleString()+'</td><td>'+r.ms.toFixed(1)+'</td><td>'+r.soc+'</td><td>'+r.mk+'</td><td>'+r.conf+'</td></tr>'});
+  $('#cmpWrap').innerHTML=h+'</tbody></table>';
+  S.lastCmp='MAPF comparison | map: '+S.preset+' | agents: '+S.agents.length+' | mode: '+S.mode+(S.preset==='random'||S.preset==='warehouse'?' | seed: '+S.seed:'')+'\nAlgorithm\tNodes\tms\tSOC\tMakespan\tConflicts\n'+rows.map(r=>[r.al,r.nodes,r.ms.toFixed(1),r.soc,r.mk,r.conf].join('\t')).join('\n');
+  $('#copyCmp').disabled=false;$('#cmpCopy').innerHTML='';
+  addLog('Comparison run on '+S.agents.length+' agents ('+S.mode+').');
+}
+$('#runCmp').addEventListener('click',runCompare);
+$('#copyCmp').addEventListener('click',()=>{
+  const fallback=()=>{$('#cmpCopy').innerHTML='<textarea class="copybox" id="cmpTxt" rows="5" readonly></textarea>';const t=$('#cmpTxt');t.value=S.lastCmp;t.focus();t.select()};
+  try{navigator.clipboard.writeText(S.lastCmp).then(()=>say('Results copied.'),fallback)}catch(e){fallback()}
+});
+
+new ResizeObserver(()=>resize()).observe(cv.parentElement);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{});
+resize();loadScenario();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
